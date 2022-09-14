@@ -130,7 +130,7 @@ async def on_message(message):
         if split_list[1] == "pushNote":
             if len(split_list) >= 3:
                 supabase.table("bulletinboard").insert(
-                    {"heading": split_list[2], "text": " ".join(split_list[3:])}).execute()
+                    {"heading": split_list[2].strip(), "text": " ".join(split_list[3:]).strip()}).execute()
             await handle_ok(message)
 
 client.run(DISCORD_TOKEN)
