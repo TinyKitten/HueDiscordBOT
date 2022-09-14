@@ -1,0 +1,110 @@
+import math
+import os
+from time import sleep
+
+import discord
+import requests
+from dotenv import load_dotenv
+from rgbxy import Converter
+
+load_dotenv()
+
+DISCORD_TOKEN = os.environ.get("DISCORD_TOKEN")
+HUE_API = os.environ.get("HUE_API")
+WAKE_SYMBOL = os.environ.get("WAKE_SYMBOL")
+
+converter = Converter()
+
+intents = discord.Intents.default()
+intents.message_content = True
+
+client = discord.Client(intents=intents)
+
+
+async def blink_hue(message):
+    red_xy = converter.hex_to_xy("ff0000")
+    green_xy = converter.hex_to_xy("00ff00")
+    blue_xy = converter.hex_to_xy("0000ff")
+    white_xy = converter.hex_to_xy("ffffff")
+
+    await put({"on": True, "bri": 254, "xy": red_xy}, message)
+    sleep(0.5)
+    await put({"on": True, "bri": 254, "xy": green_xy}, message)
+    sleep(0.5)
+    await put({"on": True, "bri": 254, "xy": blue_xy}, message)
+    sleep(0.5)
+    await put({"on": True, "bri": 254, "xy": white_xy}, message)
+
+
+async def handle_ok(message):
+    await message.add_reaction("✋")
+    await message.add_reaction("😎")
+
+
+async def handle_bad_request(message):
+    await message.add_reaction("🤔")
+
+
+async def handle_failed(message):
+    await message.add_reaction("🤮")
+
+
+async def put(json, message):
+    try:
+        requests.put(HUE_API + '/groups/1/action',
+                     json=json)
+    except requests.exceptions.RequestException as e:
+        print("PUT error: ", e)
+        await handle_failed(message)
+
+
+@client.event
+async def on_ready():
+    print(f'We have logged in as {client.user}')
+
+
+@client.event
+async def on_message(message):
+    if message.author == client.user:
+        return
+    if len(message.content) == 0:
+        return
+    if message.content[0] != WAKE_SYMBOL:
+        return
+    split_list = message.content[1:].split(' ')
+    if len(split_list) < 2:
+        return
+    if split_list[0] == 'light':
+        if split_list[1] == "on":
+            await put({"on": True}, message)
+            await handle_ok(message)
+        if split_list[1] == "off":
+            await put({"on": False}, message)
+            await handle_ok(message)
+        if split_list[1] == "party":
+            await blink_hue(message)
+            await handle_ok(message)
+        if split_list[1] == "brightness":
+            if len(split_list) != 3:
+                await handle_bad_request(message)
+                return
+            brightness = math.floor((254 * int(split_list[2])) / 100)
+            await put({"on": True, "bri": brightness}, message)
+            await handle_ok(message)
+        if split_list[1] == "hex":
+            if len(split_list) != 3:
+                await handle_bad_request(message)
+                return
+            hex = str(split_list[2])
+            if hex.startswith('#'):
+                hex = hex[1:]
+            if int(hex, 16) == 0:
+                await handle_bad_request(message)
+                return
+            xy = converter.hex_to_xy(hex)
+            await put({"on": True, "xy": xy}, message)
+            await handle_ok(message)
+            return
+
+
+client.run(DISCORD_TOKEN)
