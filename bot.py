@@ -6,6 +6,7 @@ import discord
 import requests
 from dotenv import load_dotenv
 from rgbxy import Converter
+from supabase import Client, create_client
 
 load_dotenv()
 
@@ -19,6 +20,10 @@ intents = discord.Intents.default()
 intents.message_content = True
 
 client = discord.Client(intents=intents)
+
+url: str = os.environ.get("SUPABASE_URL")
+key: str = os.environ.get("SUPABASE_KEY")
+supabase: Client = create_client(url, key)
 
 
 async def blink_hue(message):
@@ -47,6 +52,11 @@ async def handle_bad_request(message):
 
 async def handle_failed(message):
     await message.add_reaction("🤮")
+
+
+async def handle_feature_locked(message):
+    await message.add_reaction("🔐")
+    await message.add_reaction("🙅")
 
 
 async def put(json, message):
@@ -105,6 +115,25 @@ async def on_message(message):
             await put({"on": True, "xy": xy}, message)
             await handle_ok(message)
             return
+    if split_list[0] == 'kds':
+        feature_locked = False
+        restriction_data = supabase.table("settings").select(
+            "*").execute()
+        for i, data in enumerate(restriction_data.data):
+            if data['feature_name'] == "bulletinboard_locked":
+                feature_locked = data['enabled']
 
+        if feature_locked == True:
+            await handle_feature_locked(message)
+            return
+
+        if split_list[1] == "pushNote":
+            if len(split_list) == 3:
+                supabase.table("bulletinboard").insert(
+                    {"text": split_list[2]}).execute()
+            if len(split_list) == 4:
+                supabase.table("bulletinboard").insert(
+                    {"heading": split_list[2], "text": split_list[3]}).execute()
+            await handle_ok(message)
 
 client.run(DISCORD_TOKEN)
