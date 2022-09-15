@@ -13,6 +13,7 @@ load_dotenv()
 DISCORD_TOKEN = os.environ.get("DISCORD_TOKEN")
 HUE_API = os.environ.get("HUE_API")
 WAKE_SYMBOL = os.environ.get("WAKE_SYMBOL")
+MAXIMUM_LINES_COUNT = int(os.environ.get("MAXIMUM_LINES_COUNT"))
 
 converter = Converter()
 
@@ -57,6 +58,11 @@ async def handle_failed(message):
 async def handle_feature_locked(message):
     await message.add_reaction("🔐")
     await message.add_reaction("🙅")
+
+
+async def handle_lines_exceeded(message, exceeded_count):
+    await message.add_reaction("🈵")
+    await message.reply("だいたい{}行多すぎるゾ".format(exceeded_count))
 
 
 async def put(json, message):
@@ -129,8 +135,12 @@ async def on_message(message):
 
         if split_list[1] == "pushNote":
             if len(split_list) >= 3:
+                heading = split_list[2].strip()
+                text = " ".join(split_list[3:]).strip()
                 supabase.table("bulletinboard").insert(
-                    {"heading": split_list[2].strip(), "text": " ".join(split_list[3:]).strip()}).execute()
+                    {"heading": heading, "text": text}).execute()
             await handle_ok(message)
+            if text.count('\n') > MAXIMUM_LINES_COUNT:
+                await handle_lines_exceeded(message, text.count('\n') - MAXIMUM_LINES_COUNT)
 
 client.run(DISCORD_TOKEN)
