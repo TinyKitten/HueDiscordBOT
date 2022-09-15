@@ -141,7 +141,9 @@ async def on_message(message):
                 text = " ".join(split_list[3:]).strip()
                 supabase.table("bulletinboard").insert(
                     {"heading": heading, "text": text}).execute()
-            await handle_ok(message)
+                await handle_ok(message)
+            else:
+                await handle_bad_request(message)
             if text.count('\n') > MAXIMUM_LINES_COUNT:
                 await handle_lines_exceeded(message, text.count('\n') - MAXIMUM_LINES_COUNT)
 
