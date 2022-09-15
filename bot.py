@@ -14,6 +14,7 @@ DISCORD_TOKEN = os.environ.get("DISCORD_TOKEN")
 HUE_API = os.environ.get("HUE_API")
 WAKE_SYMBOL = os.environ.get("WAKE_SYMBOL")
 MAXIMUM_LINES_COUNT = int(os.environ.get("MAXIMUM_LINES_COUNT"))
+TROLL_IMAGE_URL = os.environ.get("TROLL_IMAGE_URL")
 
 converter = Converter()
 
@@ -49,6 +50,7 @@ async def handle_ok(message):
 
 async def handle_bad_request(message):
     await message.add_reaction("🤔")
+    await message.reply(TROLL_IMAGE_URL)
 
 
 async def handle_failed(message):
