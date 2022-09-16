@@ -1,5 +1,6 @@
 import math
 import os
+import re
 from time import sleep
 
 import discord
@@ -84,7 +85,7 @@ async def on_message(message):
         return
     if message.content[0] != WAKE_SYMBOL:
         return
-    split_list = message.content[1:].split(' ')
+    split_list = re.split('\s|\n', message.content[1:])
     if len(split_list) < 2:
         return
     if split_list[0] == 'light':
@@ -122,7 +123,8 @@ async def on_message(message):
         if split_list[1] == "pushNote":
             if len(split_list) >= 3:
                 heading = split_list[2].strip()
-                text = " ".join(split_list[3:]).strip()
+                text = message.content[1:].replace(split_list[0], '').replace(
+                    split_list[1], '').replace(heading, '').strip()
                 supabase.table("bulletinboard").insert(
                     {"heading": heading, "text": text}).execute()
                 await handle_ok(message)
