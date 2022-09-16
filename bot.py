@@ -136,7 +136,7 @@ async def on_message(message):
             return
         if split_list[1] == "speech":
             if SPEECH_ENABLED != "true":
-                handle_bad_request(message)
+                await handle_bad_request(message)
                 return
             text = message.content[1:].replace(
                 split_list[0], '').replace(split_list[1], '').strip()
