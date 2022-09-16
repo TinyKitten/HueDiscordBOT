@@ -16,6 +16,7 @@ HUE_API = os.environ.get("HUE_API")
 WAKE_SYMBOL = os.environ.get("WAKE_SYMBOL")
 MAXIMUM_LINES_COUNT = int(os.environ.get("MAXIMUM_LINES_COUNT"))
 TROLL_IMAGE_URL = os.environ.get("TROLL_IMAGE_URL")
+SPEECH_ENABLED = os.environ.get("SPEECH_ENABLED")
 
 converter = Converter()
 
@@ -120,17 +121,27 @@ async def on_message(message):
             await handle_ok(message)
             return
     if split_list[0] == 'kds':
+        if len(split_list) < 3:
+            await handle_bad_request(message)
+            return
         if split_list[1] == "pushNote":
-            if len(split_list) >= 3:
-                heading = split_list[2].strip()
-                text = message.content[1:].replace(split_list[0], '').replace(
-                    split_list[1], '').replace(heading, '').strip()
-                supabase.table("bulletinboard").insert(
-                    {"heading": heading, "text": text}).execute()
-                await handle_ok(message)
-            else:
-                await handle_bad_request(message)
+            heading = split_list[2].strip()
+            text = message.content[1:].replace(split_list[0], '').replace(
+                split_list[1], '').replace(heading, '').strip()
+            supabase.table("bulletinboard").insert(
+                {"heading": heading, "text": text}).execute()
+            await handle_ok(message)
             if text.count('\n') > MAXIMUM_LINES_COUNT:
                 await handle_lines_exceeded(message, text.count('\n') - MAXIMUM_LINES_COUNT)
+            return
+        if split_list[1] == "speech":
+            if SPEECH_ENABLED != "true":
+                handle_bad_request(message)
+                return
+            text = message.content[1:].replace(
+                split_list[0], '').replace(split_list[1], '').strip()
+            supabase.table("speechRequest").insert(
+                {"text": text}).execute()
+            await handle_ok(message)
 
 client.run(DISCORD_TOKEN)
