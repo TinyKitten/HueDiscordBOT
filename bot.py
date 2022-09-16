@@ -57,11 +57,6 @@ async def handle_failed(message):
     await message.add_reaction("🤮")
 
 
-async def handle_feature_locked(message):
-    await message.add_reaction("🔐")
-    await message.add_reaction("🙅")
-
-
 async def handle_lines_exceeded(message, exceeded_count):
     await message.add_reaction("🈵")
     await message.reply("だいたい{}行多すぎるゾ".format(exceeded_count))
@@ -124,17 +119,6 @@ async def on_message(message):
             await handle_ok(message)
             return
     if split_list[0] == 'kds':
-        feature_locked = False
-        restriction_data = supabase.table("settings").select(
-            "*").execute()
-        for i, data in enumerate(restriction_data.data):
-            if data['feature_name'] == "bulletinboard_locked":
-                feature_locked = data['enabled']
-
-        if feature_locked == True:
-            await handle_feature_locked(message)
-            return
-
         if split_list[1] == "pushNote":
             if len(split_list) >= 3:
                 heading = split_list[2].strip()
