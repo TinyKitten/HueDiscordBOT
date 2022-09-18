@@ -126,8 +126,8 @@ async def on_message(message):
             return
         if split_list[1] == "pushNote":
             heading = split_list[2].strip()
-            text = message.content[1:].replace(split_list[0], '').replace(
-                split_list[1], '').replace(heading, '').strip()
+            text = message.content[1:].replace(split_list[0], '', 1).replace(
+                split_list[1], '', 1).replace(heading, '', 1).strip()
             supabase.table("bulletinboard").insert(
                 {"heading": heading, "text": text}).execute()
             await handle_ok(message)
@@ -139,7 +139,7 @@ async def on_message(message):
                 await handle_bad_request(message)
                 return
             text = message.content[1:].replace(
-                split_list[0], '').replace(split_list[1], '').strip()
+                split_list[0], '', 1).replace(split_list[1], '', 1).strip()
             supabase.table("speechRequest").insert(
                 {"text": text}).execute()
             await handle_ok(message)
