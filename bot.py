@@ -50,6 +50,11 @@ async def handle_ok(message):
     await message.add_reaction("😎")
 
 
+async def handle_deprecated(message, deprecated_cmd, instead_cmd):
+    await message.add_reaction("😫")
+    await message.reply("{}コマンドは非推奨だゾ {}コマンドを今後は使いなさい".format(deprecated_cmd, instead_cmd))
+
+
 async def handle_bad_request(message):
     await message.add_reaction("🤔")
     await message.reply(TROLL_IMAGE_URL)
@@ -124,13 +129,15 @@ async def on_message(message):
         if len(split_list) < 3:
             await handle_bad_request(message)
             return
-        if split_list[1] == "pushNote":
+        if split_list[1] == "pushNote" or split_list[1] == "set":
             heading = split_list[2].strip()
             text = message.content[1:].replace(split_list[0], '', 1).replace(
                 split_list[1], '', 1).replace(heading, '', 1).strip()
             supabase.table("bulletinboard").insert(
                 {"heading": heading, "text": text}).execute()
             await handle_ok(message)
+            if split_list[1] == "pushNote":
+                await handle_deprecated(message, split_list[1], "set")
             if text.count('\n') > MAXIMUM_LINES_COUNT:
                 await handle_lines_exceeded(message, text.count('\n') - MAXIMUM_LINES_COUNT)
             return
