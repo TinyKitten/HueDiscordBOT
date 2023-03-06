@@ -110,7 +110,6 @@ async def light_brightness(ctx: discord.Interaction, brightness: str):
     description="パリピ"
 )
 async def party(ctx: discord.Interaction):
-    await ctx.response.defer()
     await blink_hue()
     await handle_ok(ctx)
 
@@ -152,9 +151,10 @@ async def kds_pop(ctx: discord.Interaction):
 async def kds_set(ctx: discord.Interaction,heading:str, text: str):
     supabase.table("bulletinboard").insert(
     {"heading": heading, "text": text}).execute()
-    await handle_ok(ctx)
     if text.count('\n') > MAXIMUM_LINES_COUNT:
         await handle_lines_exceeded(ctx, text.count('\n') - MAXIMUM_LINES_COUNT)
+    else:
+        await handle_ok(ctx)
 
 @tree.command(
     name="kds_speech",
