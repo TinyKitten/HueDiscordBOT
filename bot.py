@@ -1,6 +1,6 @@
 import math
+
 import os
-import re
 from time import sleep
 
 import discord
@@ -24,131 +24,151 @@ intents = discord.Intents.default()
 intents.message_content = True
 
 client = discord.Client(intents=intents)
+tree = discord.app_commands.CommandTree(client)
 
 url: str = os.environ.get("SUPABASE_URL")
 key: str = os.environ.get("SUPABASE_KEY")
 supabase: Client = create_client(url, key)
 
 
-async def blink_hue(message):
+async def blink_hue():
     red_xy = converter.hex_to_xy("ff0000")
     green_xy = converter.hex_to_xy("00ff00")
     blue_xy = converter.hex_to_xy("0000ff")
     white_xy = converter.hex_to_xy("ffffff")
 
-    await put({"on": True, "bri": 254, "xy": red_xy}, message)
+    await put({"on": True, "bri": 254, "xy": red_xy})
     sleep(0.5)
-    await put({"on": True, "bri": 254, "xy": green_xy}, message)
+    await put({"on": True, "bri": 254, "xy": green_xy})
     sleep(0.5)
-    await put({"on": True, "bri": 254, "xy": blue_xy}, message)
+    await put({"on": True, "bri": 254, "xy": blue_xy})
     sleep(0.5)
-    await put({"on": True, "bri": 254, "xy": white_xy}, message)
+    await put({"on": True, "bri": 254, "xy": white_xy})
 
 
-async def handle_ok(message):
-    await message.add_reaction("✋")
-    await message.add_reaction("😎")
+async def handle_ok(ctx: discord.Interaction):
+    await ctx.response.send_message("😎")
 
 
-async def handle_deprecated(message, deprecated_cmd, instead_cmd):
-    await message.add_reaction("😫")
-    await message.reply("{}コマンドは非推奨だゾ {}コマンドを今後は使いなさい".format(deprecated_cmd, instead_cmd))
+async def handle_bad_request(ctx: discord.Interaction):
+    await ctx.response.send_message(TROLL_IMAGE_URL)
 
 
-async def handle_bad_request(message):
-    await message.add_reaction("🤔")
-    await message.reply(TROLL_IMAGE_URL)
+async def handle_failed(ctx: discord.Interaction):
+    await ctx.response.send_message("🤮")
 
 
-async def handle_failed(message):
-    await message.add_reaction("🤮")
+async def handle_lines_exceeded(ctx: discord.Interaction, exceeded_count):
+    await ctx.response.send_message("だいたい{}行多すぎるゾ".format(exceeded_count))
 
 
-async def handle_lines_exceeded(message, exceeded_count):
-    await message.add_reaction("🈵")
-    await message.reply("だいたい{}行多すぎるゾ".format(exceeded_count))
-
-
-async def put(json, message):
+async def put(json):
     try:
         requests.put(HUE_API + '/groups/1/action',
-                     json=json)
+         json=json)
     except requests.exceptions.RequestException as e:
         print("PUT error: ", e)
-        await handle_failed(message)
+        tree.error(e)
 
 
 @client.event
 async def on_ready():
     print(f'We have logged in as {client.user}')
+    # 何度もおっ叩くと規制される
+    await tree.sync()
 
+@tree.command(
+    name="light_on",
+    description="ライトON"
+)
+async def light_on(ctx: discord.Interaction):
+    await put({"on": True})
+    await handle_ok(ctx)
 
-@client.event
-async def on_message(message):
-    if message.author == client.user:
+@tree.command(
+    name="light_off",
+    description="ライトOFF"
+)
+async def light_off(ctx: discord.Interaction):
+    await put({"on": False})
+    await handle_ok(ctx)
+
+@tree.command(
+    name="light_brightness",
+    description="ライト輝度"
+)
+@discord.app_commands.describe(
+    brightness="輝度"
+)
+async def light_brightness(ctx: discord.Interaction, brightness: str):
+    brightness = math.floor((254 * int(brightness)) / 100)
+    await put({"on": True, "bri": brightness})
+    await handle_ok(ctx)
+
+@tree.command(
+    name="party",
+    description="パリピ"
+)
+async def party(ctx: discord.Interaction):
+    await ctx.response.defer()
+    await blink_hue()
+    await handle_ok(ctx)
+
+@tree.command(
+    name="light_hex",
+    description="カラーコード"
+)
+@discord.app_commands.describe(
+    hex="カラーコード"
+)
+async def light_hex(ctx: discord.Interaction, hex: str):
+    if hex.startswith('#'):
+        hex = hex[1:]
+    if int(hex, 16) == 0:
+        await handle_bad_request(ctx)
         return
-    if len(message.content) == 0:
+    xy = converter.hex_to_xy(hex)
+    await put({"on": True, "xy": xy})
+    await handle_ok(ctx)
+
+@tree.command(
+    name="kds_pop",
+    description="KDS掲示板情報一つ吹っ飛ばす"
+)
+async def kds_pop(ctx: discord.Interaction):
+    target = supabase.table("bulletinboard").select('id').order(column="id",desc="dest").limit(1).execute()
+    target_id = target.data[0]['id']
+    supabase.table('bulletinboard').delete().match(query={'id': target_id}).execute()
+    await handle_ok(ctx)
+
+@tree.command(
+    name="kds_set",
+    description="KDS掲示板情報登録"
+)
+@discord.app_commands.describe(
+    heading="なんかタイトルみたいなやつ",
+    text="何書くの"
+)
+async def kds_set(ctx: discord.Interaction,heading:str, text: str):
+    supabase.table("bulletinboard").insert(
+    {"heading": heading, "text": text}).execute()
+    await handle_ok(ctx)
+    if text.count('\n') > MAXIMUM_LINES_COUNT:
+        await handle_lines_exceeded(ctx, text.count('\n') - MAXIMUM_LINES_COUNT)
+
+@tree.command(
+    name="kds_speech",
+    description="KDS喋らせるやつ"
+)
+@discord.app_commands.describe(
+    text="NSFW"
+)
+async def kds_speech(ctx: discord.Interaction, text: str):
+    if SPEECH_ENABLED != "true":
+        await handle_bad_request(ctx)
         return
-    if message.content[0] != WAKE_SYMBOL:
-        return
-    split_list = re.split('\s|\n', message.content[1:])
-    if len(split_list) < 2:
-        return
-    if split_list[0] == 'light':
-        if split_list[1] == "on":
-            await put({"on": True}, message)
-            await handle_ok(message)
-        if split_list[1] == "off":
-            await put({"on": False}, message)
-            await handle_ok(message)
-        if split_list[1] == "party":
-            await blink_hue(message)
-            await handle_ok(message)
-        if split_list[1] == "brightness":
-            if len(split_list) != 3:
-                await handle_bad_request(message)
-                return
-            brightness = math.floor((254 * int(split_list[2])) / 100)
-            await put({"on": True, "bri": brightness}, message)
-            await handle_ok(message)
-        if split_list[1] == "hex":
-            if len(split_list) != 3:
-                await handle_bad_request(message)
-                return
-            hex = str(split_list[2])
-            if hex.startswith('#'):
-                hex = hex[1:]
-            if int(hex, 16) == 0:
-                await handle_bad_request(message)
-                return
-            xy = converter.hex_to_xy(hex)
-            await put({"on": True, "xy": xy}, message)
-            await handle_ok(message)
-            return
-    if split_list[0] == 'kds':
-        if len(split_list) < 3:
-            await handle_bad_request(message)
-            return
-        if split_list[1] == "pushNote" or split_list[1] == "set":
-            heading = split_list[2].strip()
-            text = message.content[1:].replace(split_list[0], '', 1).replace(
-                split_list[1], '', 1).replace(heading, '', 1).strip()
-            supabase.table("bulletinboard").insert(
-                {"heading": heading, "text": text}).execute()
-            await handle_ok(message)
-            if split_list[1] == "pushNote":
-                await handle_deprecated(message, split_list[1], "set")
-            if text.count('\n') > MAXIMUM_LINES_COUNT:
-                await handle_lines_exceeded(message, text.count('\n') - MAXIMUM_LINES_COUNT)
-            return
-        if split_list[1] == "speech":
-            if SPEECH_ENABLED != "true":
-                await handle_bad_request(message)
-                return
-            text = message.content[1:].replace(
-                split_list[0], '', 1).replace(split_list[1], '', 1).strip()
-            supabase.table("speechRequest").insert(
-                {"text": text}).execute()
-            await handle_ok(message)
+    supabase.table("speechRequest").insert(
+        {"text": text}).execute()
+    await handle_ok(ctx)
 
 client.run(DISCORD_TOKEN)
